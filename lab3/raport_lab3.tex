@@ -1,0 +1,513 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,romanian]{babel}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{amsmath,amssymb}
+\usepackage{fancyhdr}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{dirtytalk}
+\usepackage{csquotes}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{booktabs}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    numbers=left,
+    numberstyle=\tiny,
+    frame=single,
+    breaklines=true,
+    showstringspaces=false,
+    captionpos=b
+}
+% listings nu înțelege direct diacriticele UTF-8, de aceea le traducem explicit.
+\lstset{
+    literate=
+        {Ă}{{\u{A}}}1 {ă}{{\u{a}}}1
+        {Â}{{\^A}}1 {â}{{\^a}}1
+        {Î}{{\^I}}1 {î}{{\^i}}1
+        {Ș}{{\textcommabelow{S}}}1 {ș}{{\textcommabelow{s}}}1
+        {Ț}{{\textcommabelow{T}}}1 {ț}{{\textcommabelow{t}}}1
+}
+\lstdefinestyle{terminal}{
+    language={},
+    numbers=none,
+    backgroundcolor=\color{black!5},
+    basicstyle=\ttfamily\footnotesize
+}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.25em}
+
+\begin{document}
+\begin{titlepage}
+\begin{center}
+    % Înlocuiți calea dacă logoul este stocat în altă parte.
+    \includegraphics[width=0.3\textwidth]{lab1/image .png}\\[0.2cm]
+    \textbf{MINISTERUL EDUCAȚIEI, CULTURII ȘI CERCETĂRII\\
+    AL REPUBLICII MOLDOVA}\\[0.3cm]
+    \textbf{Universitatea Tehnică a Moldovei\\
+    Facultatea Calculatoare, Informatică și Microelectronică\\
+    Departamentul Inginerie Software și Automatică}\\[2cm]
+    \Huge\textbf{Raport}\\[0.5cm]
+    \Large Lucrarea de laborator nr. 3\\[0.3cm]
+    \large\textbf{la Criptografie și Securitate}\\[0.8cm]
+    \textbf{Ciur Alexandrina, FAF-241}\\[2.5cm]
+    \begin{flushright}
+        \textit{Verificat de:}\\
+        \textbf{Zaica M.}\\
+        DISA, FCIM, UTM
+    \end{flushright}
+    \vfill
+    Chișinău -- 2026
+\end{center}
+\end{titlepage}
+
+\section*{Tema: Cifruri polialfabetice. Algoritmul Playfair}
+
+\section{Scopul lucrării}
+
+Studierea cifrurilor de substituție polialfabetică și implementarea algoritmului
+de criptare Playfair pentru mesaje scrise în limba română (alfabet de 31 de litere),
+cu posibilitatea de criptare și decriptare a textului.
+
+\section{Sarcina lucrării}
+
+Conform registrului grupei, studentul are numărul 7 (număr impar), prin urmare
+a fost realizată \textbf{Sarcina 3.1}:
+
+\begin{quote}
+\itshape
+De implementat algoritmul Playfair în unul din limbajele de programare pentru
+mesaje în limba română (31 de litere). Valorile caracterelor textului sunt cuprinse
+între `A' și `Z', `a' și `z' și nu sunt permise alte valori. În cazul în care
+utilizatorul introduce alte valori -- i se va sugera diapazonul corect al
+caracterelor. Lungimea cheii nu trebuie să fie mai mică de 7. Utilizatorul va putea
+alege operația -- criptare sau decriptare, va putea introduce cheia, mesajul sau
+criptograma și va obține criptograma sau mesajul decriptat. Faza finală de adăugare
+a spațiilor noi, în funcție de limba folosită și de logica mesajului -- se va face
+manual.
+\end{quote}
+
+\section{Considerații teoretice}
+
+\subsection{Cifrurile polialfabetice}
+
+Slăbiciunea cifrurilor monoalfabetice (de exemplu, cifrul Cezar) constă în faptul
+că fiecare literă a textului clar este înlocuită mereu cu aceeași literă a
+criptogramei. Astfel, distribuția frecvențelor literelor din criptogramă repetă
+distribuția din limba textului clar, iar cifrul poate fi spart prin analiza
+frecvențelor.
+
+La cifrurile \textbf{polialfabetice}, substituția unui caracter variază în funcție
+de diverși parametri (poziția în text, contextul, literele vecine etc.). Aceeași
+literă a textului clar poate fi criptată în moduri diferite, iar distribuția
+frecvențelor devine mai uniformă și oferă mai puține informații criptanalistului.
+Exemple clasice sunt cifrul Vigenère și cifrul Playfair.
+
+\subsection{Scurt istoric al algoritmului Playfair}
+
+Algoritmul a fost inventat de Charles Wheatstone și descris pentru prima dată la
+26 martie 1854, însă poartă numele baronului Lyon Playfair, care a convins guvernul
+britanic să-l adopte pentru uz oficial. A fost folosit de armata britanică în
+războiul cu burii, iar variante modificate au fost folosite în Primul și al Doilea
+Război Mondial. Astăzi algoritmul este considerat învechit, dar este unul dintre
+primii algoritmi care criptează \textbf{blocuri} de câte două litere (digrame),
+idee folosită și în cifrurile bloc moderne.
+
+\subsection{Descrierea algoritmului Playfair}
+
+Criptarea Playfair constă din trei etape:
+\begin{enumerate}
+    \item pregătirea textului ce urmează a fi criptat;
+    \item construirea matricei de criptare pe baza cheii;
+    \item criptarea textului pe perechi de litere.
+\end{enumerate}
+
+\paragraph{1. Pregătirea textului.} Textul se scrie cu majuscule, fără spații și
+semne de punctuație, apoi se împarte în perechi de câte două litere. Dacă într-o
+pereche ar apărea două litere identice (de exemplu \texttt{LL}), între ele se
+inserează o literă de umplutură (de regulă una rar folosită, cum ar fi \texttt{X}).
+Dacă la final rămâne o singură literă, i se adaugă o literă de umplutură.
+
+\paragraph{2. Construirea matricei.} Din cheie se elimină literele care se repetă,
+păstrându-se doar prima apariție. Matricea se completează pe rânduri, începând din
+colțul stânga-sus, mai întâi cu literele cheii, apoi cu restul literelor
+alfabetului, în ordine alfabetică. Fiecare literă apare în matrice o singură dată.
+
+\paragraph{3. Criptarea perechilor.} Fie perechea de litere aflate pe pozițiile
+$(r_1, c_1)$ și $(r_2, c_2)$ într-o matrice cu $R$ rânduri și $C$ coloane:
+\begin{itemize}
+    \item \textbf{aceeași linie} ($r_1 = r_2$) -- fiecare literă se înlocuiește cu
+    cea din dreapta ei (ultima trece la prima):
+    \[
+        (r, c) \rightarrow \bigl(r,\ (c + 1) \bmod C\bigr);
+    \]
+    \item \textbf{aceeași coloană} ($c_1 = c_2$) -- fiecare literă se înlocuiește
+    cu cea de dedesubt (ultima trece la prima):
+    \[
+        (r, c) \rightarrow \bigl((r + 1) \bmod R,\ c\bigr);
+    \]
+    \item \textbf{linii și coloane diferite} -- literele formează colțurile unui
+    dreptunghi și fiecare se înlocuiește cu litera de pe aceeași linie, dar de pe
+    coloana celeilalte litere:
+    \[
+        (r_1, c_1),\ (r_2, c_2) \rightarrow (r_1, c_2),\ (r_2, c_1).
+    \]
+\end{itemize}
+
+\paragraph{Decriptarea} folosește aceeași matrice și aceleași reguli, dar în sens
+invers: pe aceeași linie se ia litera din \textbf{stânga}
+($(c - 1) \bmod C$), pe aceeași coloană -- litera de \textbf{deasupra}
+($(r - 1) \bmod R$), iar regula dreptunghiului rămâne neschimbată. După decriptare,
+literele de umplutură se elimină și spațiile se adaugă manual, în funcție de
+sensul mesajului.
+
+\subsection{Adaptarea pentru alfabetul român}
+
+Alfabetul român are 31 de litere:
+\begin{center}
+\texttt{A Ă Â B C D E F G H I Î J K L M N O P Q R S Ș T Ț U V W X Y Z}
+\end{center}
+
+Numărul 31 este prim, deci literele nu pot fi aranjate exact într-o matrice
+dreptunghiulară fără celule libere. Conform indicațiilor lucrării, se poate elimina
+litera cel mai rar întâlnită în limba respectivă, iar la decriptare ea se restabilește
+intuitiv. În implementare au fost luate următoarele decizii:
+\begin{itemize}
+    \item litera \textbf{Q} (cea mai rară în limba română) este înlocuită cu
+    \textbf{K} atât în cheie, cât și în mesaj;
+    \item rămân $31 - 1 = 30$ de litere, care formează o matrice de
+    \textbf{6 linii $\times$ 5 coloane};
+    \item litera de umplutură este \textbf{X}; dacă litera dublată este chiar
+    \texttt{X}, se folosește \textbf{Y};
+    \item lungimea minimă a cheii este de 7 litere (fără spații);
+    \item se acceptă doar literele \texttt{A--Z}, \texttt{a--z},
+    \texttt{Ă, Â, Î, Ș, Ț} (și minusculele lor) și spații.
+\end{itemize}
+
+Numărul de matrice posibile este $30! \approx 2{,}65 \cdot 10^{32}$, ceea ce face
+imposibilă căutarea exhaustivă manuală a cheii.
+
+\subsection{Exemplu de criptare manuală}
+
+Pentru cheia \enquote{Primăvara frumoasă}, după eliminarea spațiilor și a literelor
+repetate, obținem \texttt{PRIMĂVAFUOS}. Matricea de criptare este:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+P & R & I & M & Ă \\ \hline
+V & A & F & U & O \\ \hline
+S & Â & B & C & D \\ \hline
+E & G & H & Î & J \\ \hline
+K & L & N & Ș & T \\ \hline
+Ț & W & X & Y & Z \\ \hline
+\end{tabular}
+\end{center}
+
+Exemple de aplicare a fiecărei reguli:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}cccl@{}}
+\toprule
+\textbf{Pereche} & \textbf{Poziții} & \textbf{Rezultat} & \textbf{Regula aplicată} \\
+\midrule
+PI & (0,0), (0,2) & RM & aceeași linie $\rightarrow$ litera din dreapta \\
+IN & (0,2), (4,2) & FX & aceeași coloană $\rightarrow$ litera de dedesubt \\
+MÂ & (0,3), (2,1) & RC & dreptunghi $\rightarrow$ se schimbă coloanele \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Mesajul \enquote{Accesul la date secrete} se pregătește astfel: se scot spațiile
+(\texttt{ACCESULLADATESECRETE}), se împarte în perechi, între cele două litere
+\texttt{L} din aceeași pereche se inserează \texttt{X}, iar la final se adaugă
+\texttt{X}, deoarece rămâne o literă fără pereche:
+\begin{center}
+\texttt{AC CE SU LX LA DA TE SE CR ET EX}
+\end{center}
+Criptograma obținută este \texttt{UÂSÎCVNWWÂÂOKJEKÂMJKHȚ}.
+
+\section{Implementarea}
+
+Programul a fost realizat în limbajul \textbf{Python 3} (fișierul
+\texttt{lab3/lab3.py}). Mai jos sunt prezentate părțile principale ale codului.
+
+\subsection{Alfabetul și constantele}
+
+\begin{lstlisting}[caption={Alfabetul român și parametrii matricei}]
+ALPHABET = (
+    "A", "Ă", "Â", "B", "C", "D", "E", "F", "G", "H", "I", "Î", "J", "K",
+    "L", "M", "N", "O", "P", "Q", "R", "S", "Ș", "T", "Ț", "U", "V", "W",
+    "X", "Y", "Z",
+)
+MIN_KEY_LENGTH = 7
+PLAYFAIR_ROWS = 6
+PLAYFAIR_COLUMNS = 5
+# 31 de litere nu umplu o matrice dreptunghiulara, deci Q (cea mai rara litera
+# in limba romana) este inlocuita cu K si raman 30 de litere = 6 x 5.
+REPLACED_LETTER = "Q"
+REPLACEMENT = "K"
+MATRIX_ALPHABET = tuple(
+    character for character in ALPHABET if character != REPLACED_LETTER
+)
+FILLER = "X"
+ALTERNATE_FILLER = "Y"
+\end{lstlisting}
+
+Tupla \texttt{ALPHABET} conține toate cele 31 de litere ale alfabetului român.
+\texttt{MATRIX\_ALPHABET} este același alfabet fără litera \texttt{Q}, adică cele
+30 de litere care se plasează în matricea $6 \times 5$.
+
+\subsection{Validarea textului introdus}
+
+\begin{lstlisting}[caption={Normalizarea și validarea textului}]
+def validate_text(raw):
+    """Validate and compact a message or key, returning (text, invalid_character)."""
+    text = normalize(raw).replace(" ", "")
+    for character in text:
+        if character not in ALPHABET:
+            return None, character
+    return text.replace(REPLACED_LETTER, REPLACEMENT), None
+\end{lstlisting}
+
+Funcția transformă textul în majuscule, elimină spațiile și verifică fiecare
+caracter. Dacă este găsit un caracter nepermis (cifră, semn de punctuație etc.),
+acesta este returnat, iar programul îi afișează utilizatorului diapazonul corect
+al caracterelor. La final, litera \texttt{Q} este înlocuită cu \texttt{K}.
+
+\subsection{Construirea matricei Playfair}
+
+\begin{lstlisting}[caption={Eliminarea literelor repetate din cheie și construirea matricei}]
+def unique_key(key):
+    """Remove repeated letters from a Playfair key, preserving first occurrence."""
+    return "".join(dict.fromkeys(key))
+
+
+def build_playfair_matrix(key):
+    """Build a 6x5 matrix containing every matrix alphabet character once."""
+    key = unique_key(key)
+    sequence = key + "".join(
+        character for character in MATRIX_ALPHABET if character not in key
+    )
+    return [
+        sequence[row * PLAYFAIR_COLUMNS:(row + 1) * PLAYFAIR_COLUMNS]
+        for row in range(PLAYFAIR_ROWS)
+    ]
+\end{lstlisting}
+
+\texttt{dict.fromkeys(key)} păstrează doar prima apariție a fiecărei litere din cheie.
+La cheie se adaugă literele alfabetului care nu apar în ea, iar șirul de 30 de
+litere obținut este tăiat în 6 rânduri a câte 5 litere.
+
+\subsection{Pregătirea mesajului}
+
+\begin{lstlisting}[caption={Împărțirea în perechi și inserarea literelor de umplutură}]
+def _filler_for(character):
+    return ALTERNATE_FILLER if character == FILLER else FILLER
+
+
+def prepare_playfair_text(text):
+    """Split text into digraphs, separating repeated letters and padding the end."""
+    pairs = []
+    index = 0
+    while index < len(text):
+        first = text[index]
+        second = text[index + 1] if index + 1 < len(text) else None
+        if second is None or first == second:
+            pairs.append(first + _filler_for(first))
+            index += 1
+        else:
+            pairs.append(first + second)
+            index += 2
+    return "".join(pairs)
+\end{lstlisting}
+
+Dacă perechea ar conține două litere identice sau dacă a rămas o singură literă la
+sfârșit, se adaugă litera de umplutură, iar a doua literă trece în perechea următoare.
+
+\subsection{Criptarea și decriptarea}
+
+\begin{lstlisting}[caption={Aplicarea celor trei reguli Playfair}]
+def playfair(text, key, decrypt=False):
+    """Encrypt or decrypt a prepared Playfair message."""
+    if len(text) % 2:
+        raise ValueError("Textul Playfair trebuie sa contina un numar par de litere.")
+    matrix = build_playfair_matrix(key)
+    positions = _playfair_positions(matrix)
+    result = []
+    step = -1 if decrypt else 1
+
+    for index in range(0, len(text), 2):
+        first, second = text[index:index + 2]
+        row1, column1 = positions[first]
+        row2, column2 = positions[second]
+        if row1 == row2:
+            result.extend((
+                matrix[row1][(column1 + step) % PLAYFAIR_COLUMNS],
+                matrix[row2][(column2 + step) % PLAYFAIR_COLUMNS],
+            ))
+        elif column1 == column2:
+            result.extend((
+                matrix[(row1 + step) % PLAYFAIR_ROWS][column1],
+                matrix[(row2 + step) % PLAYFAIR_ROWS][column2],
+            ))
+        else:
+            result.extend((matrix[row1][column2], matrix[row2][column1]))
+    return "".join(result)
+\end{lstlisting}
+
+Aceeași funcție realizează și criptarea, și decriptarea. Diferența este dată de
+variabila \texttt{step}: la criptare este $+1$ (deplasare la dreapta/în jos), iar la
+decriptare este $-1$ (deplasare la stânga/în sus). Operația modulo (\texttt{\%})
+asigură trecerea de la ultima literă a liniei sau a coloanei la prima.
+
+\subsection{Citirea datelor de la utilizator}
+
+\begin{lstlisting}[caption={Citirea mesajului cu verificarea erorilor}]
+def _read_message(prompt, decrypt=False):
+    while True:
+        message, invalid = validate_text(input(prompt))
+        if invalid is not None:
+            print(f"Caracter invalid: {invalid!r}. Folositi doar: {ALLOWED_HINT}.")
+        elif not message:
+            print("Textul nu poate fi gol.")
+        elif decrypt and len(message) % 2:
+            print("Criptograma trebuie sa aiba un numar par de litere.")
+        else:
+            return message
+\end{lstlisting}
+
+Programul cere datele din nou până când acestea sunt corecte: caracterele trebuie
+să fie permise, textul nu poate fi gol, iar criptograma trebuie să aibă un număr par
+de litere. Cheia este verificată analog, inclusiv lungimea minimă de 7 litere.
+
+\section{Rezultatele execuției}
+
+Programul se lansează din terminal cu comanda:
+\begin{lstlisting}[style=terminal]
+python lab3/lab3.py
+\end{lstlisting}
+
+\subsection{Criptarea mesajului}
+
+Utilizatorul alege opțiunea \texttt{1}, introduce cheia și mesajul. Programul
+afișează matricea, mesajul pregătit (împărțit în perechi) și criptograma.
+
+\begin{lstlisting}[style=terminal, caption={Criptarea mesajului \enquote{Accesul la date secrete}}]
+=== Cifrul Playfair (alfabetul romanesc) ===
+1. Criptare
+2. Decriptare
+0. Iesire
+Alege (0-2): 1
+Cheia (minimum 7 litere): Primăvara frumoasă
+Mesajul: Accesul la date secrete
+Matricea Playfair:
+P R I M Ă
+V A F U O
+S Â B C D
+E G H Î J
+K L N Ș T
+Ț W X Y Z
+Mesaj pregatit: AC CE SU LX LA DA TE SE CR ET EX
+Criptograma: UÂSÎCVNWWÂÂOKJEKÂMJKHȚ
+\end{lstlisting}
+
+% Pentru a adăuga o captură de ecran, încărcați imaginea în Overleaf și
+% decomentați blocul de mai jos (schimbați numele fișierului dacă e altul).
+% \begin{figure}[h!]
+%     \centering
+%     \includegraphics[width=0.9\textwidth]{lab3/criptare.png}
+%     \caption{Criptarea mesajului în terminal}
+% \end{figure}
+
+\subsection{Decriptarea criptogramei}
+
+Utilizatorul alege opțiunea \texttt{2}, introduce \textbf{aceeași cheie} și
+criptograma obținută anterior.
+
+\begin{lstlisting}[style=terminal, caption={Decriptarea criptogramei}]
+Alege (0-2): 2
+Cheia (minimum 7 litere): Primăvara frumoasă
+Criptograma: UÂSÎCVNWWÂÂOKJEKÂMJKHȚ
+Matricea Playfair:
+P R I M Ă
+V A F U O
+S Â B C D
+E G H Î J
+K L N Ș T
+Ț W X Y Z
+Mesaj decriptat (pe perechi): AC CE SU LX LA DA TE SE CR ET EX
+Mesaj decriptat: ACCESULXLADATESECRETEX
+Eliminati manual literele X/Y adaugate si puneti spatiile intre cuvinte.
+\end{lstlisting}
+
+% \begin{figure}[h!]
+%     \centering
+%     \includegraphics[width=0.9\textwidth]{lab3/decriptare.png}
+%     \caption{Decriptarea criptogramei în terminal}
+% \end{figure}
+
+Eliminând manual literele de umplutură \texttt{X} (cea dintre cele două
+\texttt{L} și cea de la final) și adăugând spațiile, obținem mesajul inițial:
+\begin{center}
+\texttt{ACCESUL LA DATE SECRETE}
+\end{center}
+
+\subsection{Tratarea datelor incorecte}
+
+Dacă utilizatorul introduce o opțiune inexistentă, o cheie prea scurtă, caractere
+nepermise sau o criptogramă cu număr impar de litere, programul afișează un mesaj
+explicativ și cere datele din nou.
+
+\begin{lstlisting}[style=terminal, caption={Mesaje de eroare la introducerea datelor greșite}]
+Alege (0-2): 5
+Optiune invalida. Alegeti un numar intre 0 si 2.
+
+Alege (0-2): 1
+Cheia (minimum 7 litere): cheie
+Cheia trebuie sa aiba cel putin 7 litere.
+Cheia (minimum 7 litere): Primăvara frumoasă
+Mesajul: Parola: 1234
+Caracter invalid: ':'. Folositi doar: A-Z, a-z, Ă, Â, Î, Ș, Ț (ă, â, î, ș, ț) si spatii.
+...
+Alege (0-2): 2
+Cheia (minimum 7 litere): Primăvara frumoasă
+Criptograma: UÂSÎC
+Criptograma trebuie sa aiba un numar par de litere.
+\end{lstlisting}
+
+\section{Concluzii}
+
+În cadrul acestei lucrări de laborator a fost studiat principiul de funcționare al
+cifrurilor polialfabetice și a fost implementat algoritmul Playfair pentru
+alfabetul român în limbajul Python. Programul permite alegerea operației (criptare
+sau decriptare), introducerea cheii și a mesajului sau a criptogramei, verifică
+corectitudinea datelor și sugerează diapazonul corect al caracterelor în caz de
+eroare.
+
+Deoarece alfabetul român are 31 de litere, iar 31 este un număr prim, a fost
+necesară adaptarea algoritmului: litera cea mai rară, \texttt{Q}, a fost înlocuită
+cu \texttt{K}, obținându-se o matrice de $6 \times 5$. Am observat că, spre deosebire
+de cifrurile monoalfabetice, la Playfair aceeași literă se poate cripta diferit, în
+funcție de litera cu care formează pereche, ceea ce ascunde frecvențele literelor
+individuale. Totuși, algoritmul păstrează frecvențele perechilor de litere și poate
+fi spart prin analiza digramelor, de aceea astăzi are doar valoare didactică.
+
+De asemenea, am constatat că decriptarea reușește doar cu exact aceeași cheie ca la
+criptare: o cheie diferită generează o altă matrice, iar rezultatul este un text
+fără sens. Pasul final -- eliminarea literelor de umplutură și adăugarea spațiilor --
+se face manual, deoarece programul nu poate deosebi o literă \texttt{X} adăugată de
+una care face parte din mesaj (de exemplu, în cuvântul \enquote{examen}).
+
+Codul sursă al lucrării este disponibil în repozitoriul GitHub:\\
+\url{https://github.com/alecsyyyk/Cryptography-and-Security}
+
+\end{document}
