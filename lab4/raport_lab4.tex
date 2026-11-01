@@ -1,0 +1,523 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,romanian]{babel}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{amsmath,amssymb}
+\usepackage{fancyhdr}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{dirtytalk}
+\usepackage{csquotes}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{booktabs}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    numbers=left,
+    numberstyle=\tiny,
+    frame=single,
+    breaklines=true,
+    showstringspaces=false,
+    captionpos=b
+}
+% listings nu înțelege direct diacriticele UTF-8, de aceea le traducem explicit.
+\lstset{
+    literate=
+        {Ă}{{\u{A}}}1 {ă}{{\u{a}}}1
+        {Â}{{\^A}}1 {â}{{\^a}}1
+        {Î}{{\^I}}1 {î}{{\^i}}1
+        {Ș}{{\textcommabelow{S}}}1 {ș}{{\textcommabelow{s}}}1
+        {Ț}{{\textcommabelow{T}}}1 {ț}{{\textcommabelow{t}}}1
+}
+\lstdefinestyle{terminal}{
+    language={},
+    numbers=none,
+    backgroundcolor=\color{black!5},
+    basicstyle=\ttfamily\footnotesize
+}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.25em}
+
+\begin{document}
+\begin{titlepage}
+\begin{center}
+    % Înlocuiți calea dacă logoul este stocat în altă parte.
+    \includegraphics[width=0.3\textwidth]{lab1/image .png}\\[0.2cm]
+    \textbf{MINISTERUL EDUCAȚIEI, CULTURII ȘI CERCETĂRII\\
+    AL REPUBLICII MOLDOVA}\\[0.3cm]
+    \textbf{Universitatea Tehnică a Moldovei\\
+    Facultatea Calculatoare, Informatică și Microelectronică\\
+    Departamentul Inginerie Software și Automatică}\\[2cm]
+    \Huge\textbf{Raport}\\[0.5cm]
+    \Large Lucrarea de laborator nr. 4\\[0.3cm]
+    \large\textbf{la Criptografie și Securitate}\\[0.8cm]
+    \textbf{Ciur Alexandrina, FAF-241}\\[2.5cm]
+    \begin{flushright}
+        \textit{Verificat de:}\\
+        \textbf{Zaica M.}\\
+        DISA, FCIM, UTM
+    \end{flushright}
+    \vfill
+    Chișinău -- 2026
+\end{center}
+\end{titlepage}
+
+\section*{Tema: Cifruri bloc. Algoritmul DES}
+
+\section{Scopul lucrării}
+
+Studierea cifrurilor bloc și a algoritmului DES (Data Encryption Standard) și
+implementarea unui element al acestuia -- aplicarea cutiilor de substituție
+(cutiile S) asupra unui bloc de 48 de biți, cu afișarea tabelelor folosite și a
+tuturor pașilor intermediari.
+
+\section{Sarcina lucrării}
+
+Numărul sarcinii se alege după formula $nr\_sarcina = n \bmod 11$, unde $n$ este
+numărul de ordine al studentului în lista grupei. Pentru $n = 7$ obținem
+$7 \bmod 11 = 7$, prin urmare a fost realizată \textbf{Sarcina 2.7}:
+
+\begin{quote}
+\itshape
+În algoritmul DES este dat $B_1B_2B_3B_4B_5B_6B_7B_8$. De aflat
+\[
+    S_1(B_1)S_2(B_2)S_3(B_3)S_4(B_4)S_5(B_5)S_6(B_6)S_7(B_7)S_8(B_8).
+\]
+Să fie afișate la ecran tabelele utilizate și toți pașii intermediari. Datele de
+intrare să fie posibil de introdus de utilizator sau de generat în mod aleatoriu.
+\end{quote}
+
+\section{Considerații teoretice}
+
+\subsection{Cifrurile bloc}
+
+Un \textbf{cifru bloc} împarte mesajul în blocuri de lungime fixă și criptează
+fiecare bloc separat, folosind aceeași cheie. Pentru un bloc de $n$ biți, cifrul
+este o funcție care, pentru o cheie fixată, transformă fiecare dintre cele $2^n$
+blocuri posibile ale textului clar într-un bloc unic al criptogramei. Dacă
+ultimul bloc al mesajului este mai scurt, el se completează (\textit{padding}).
+
+Majoritatea cifrurilor bloc moderne se bazează pe două principii propuse de
+Claude Shannon:
+\begin{itemize}
+    \item \textbf{confuzia} -- legătura dintre cheie și criptogramă trebuie să fie
+    cât mai complicată (se obține prin \textbf{substituții});
+    \item \textbf{difuzia} -- fiecare bit al textului clar trebuie să influențeze
+    cât mai mulți biți ai criptogramei (se obține prin \textbf{permutări}).
+\end{itemize}
+Aceste operații se aplică de mai multe ori, în \textbf{runde}, fiecare rundă
+folosind o cheie de rundă diferită, obținută din cheia principală.
+
+\subsection{Scurt istoric al algoritmului DES}
+
+DES a fost elaborat de compania IBM (pe baza cifrului Lucifer) și a fost adoptat
+în 1977 ca standard federal al SUA (FIPS 46). Timp de peste 20 de ani a fost cel
+mai folosit cifru bloc din lume. Cheia efectivă de doar 56 de biți a devenit însă
+prea scurtă: în 1998 mașina \enquote{Deep Crack} a găsit o cheie DES prin căutare
+exhaustivă în mai puțin de 3 zile. De aceea, standardul FIPS 46-3 (1999)
+recomandă varianta \textbf{Triple DES} (3DES), iar în 2001 DES a fost înlocuit de
+algoritmul AES.
+
+\subsection{Structura generală a algoritmului DES}
+
+DES criptează blocuri de \textbf{64 de biți} cu o cheie de \textbf{64 de biți}, din
+care doar 56 sunt folosiți efectiv (fiecare al 8-lea bit este bit de paritate).
+Algoritmul are o \textbf{structură Feistel} cu 16 runde:
+
+\begin{enumerate}
+    \item asupra blocului de 64 de biți se aplică \textbf{permutarea inițială}
+    $IP$, iar rezultatul se împarte în două jumătăți de câte 32 de biți:
+    $L_0$ (stânga) și $R_0$ (dreapta);
+    \item se execută 16 runde; în runda $i$ ($i = 1, \dots, 16$):
+    \[
+        L_i = R_{i-1}, \qquad R_i = L_{i-1} \oplus f(R_{i-1}, K_i),
+    \]
+    unde $\oplus$ este operația XOR (adunare modulo 2), iar $K_i$ este cheia de
+    rundă de 48 de biți;
+    \item după runda 16, jumătățile se unesc în ordine inversă, $R_{16}L_{16}$, și
+    se aplică \textbf{permutarea finală} $IP^{-1}$, obținându-se criptograma de
+    64 de biți.
+\end{enumerate}
+
+Decriptarea folosește același algoritm, dar cheile de rundă se aplică în ordine
+inversă ($K_{16}, K_{15}, \dots, K_1$). Aceasta este o proprietate a structurii
+Feistel: funcția $f$ nu trebuie să fie inversabilă.
+
+\subsection{Generarea cheilor de rundă}
+
+\begin{enumerate}
+    \item Din cheia de 64 de biți se aplică permutarea \textbf{PC-1}, care elimină
+    biții de paritate și dă cheia $K^+$ de 56 de biți.
+    \item $K^+$ se împarte în două jumătăți de câte 28 de biți: $C_0$ și $D_0$.
+    \item Pentru $i = 1, \dots, 16$, $C_i$ și $D_i$ se obțin din $C_{i-1}$ și
+    $D_{i-1}$ prin \textbf{deplasare ciclică la stânga} cu 1 sau 2 poziții, conform
+    tabelului:
+    \begin{center}
+    \small
+    \begin{tabular}{|c|*{16}{c|}}
+    \hline
+    Runda $i$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12 & 13 & 14 & 15 & 16 \\ \hline
+    Deplasări & 1 & 1 & 2 & 2 & 2 & 2 & 2 & 2 & 1 & 2 & 2 & 2 & 2 & 2 & 2 & 1 \\ \hline
+    \end{tabular}
+    \end{center}
+    \item Cheia de rundă $K_i$ de 48 de biți se obține aplicând permutarea
+    \textbf{PC-2} asupra concatenării $C_iD_i$.
+\end{enumerate}
+
+\subsection{Funcția $f$}
+
+Funcția $f(R_{i-1}, K_i)$ primește 32 de biți și întoarce 32 de biți:
+\begin{enumerate}
+    \item \textbf{expansiunea} $E$ transformă $R_{i-1}$ din 32 în 48 de biți (unii
+    biți se repetă);
+    \item rezultatul se adună modulo 2 cu cheia de rundă:
+    $K_i \oplus E(R_{i-1}) = B_1B_2B_3B_4B_5B_6B_7B_8$, unde fiecare $B_j$ are
+    6 biți;
+    \item fiecare $B_j$ trece prin cutia $S_j$ și se obțin 4 biți, deci în total
+    $8 \cdot 4 = 32$ de biți: $S_1(B_1)S_2(B_2)\dots S_8(B_8)$ -- \textbf{pasul
+    realizat în această lucrare};
+    \item asupra celor 32 de biți se aplică permutarea $P$:
+    \[
+        f(R_{i-1}, K_i) = P\bigl(S_1(B_1)S_2(B_2)\dots S_8(B_8)\bigr).
+    \]
+\end{enumerate}
+
+\subsection{Cutiile S}
+
+DES are 8 cutii S ($S_1, \dots, S_8$). Fiecare este un tabel cu \textbf{4 rânduri}
+(numerotate 0--3) și \textbf{16 coloane} (numerotate 0--15), cu valori între 0 și
+15. Pentru un bloc de 6 biți $B_j = b_1b_2b_3b_4b_5b_6$:
+\begin{itemize}
+    \item \textbf{rândul} este numărul scris în binar de primul și ultimul bit:
+    $r = (b_1b_6)_2$;
+    \item \textbf{coloana} este numărul scris în binar de cei 4 biți din mijloc:
+    $c = (b_2b_3b_4b_5)_2$;
+    \item $S_j(B_j)$ este valoarea $S_j[r][c]$, scrisă pe \textbf{4 biți}.
+\end{itemize}
+
+Cutiile S sunt singura componentă \textbf{neliniară} a algoritmului DES: toate
+celelalte operații (permutări, expansiune, XOR) sunt liniare. Fără ele, DES ar
+putea fi spart prin rezolvarea unui sistem de ecuații liniare. Fiecare rând al
+fiecărei cutii conține o singură dată toate numerele 0--15, iar modificarea unui
+singur bit de intrare schimbă cel puțin doi biți de ieșire, ceea ce asigură
+difuzia de la o rundă la alta.
+
+Tabelul cutiei $S_1$ (celelalte șapte au aceeași formă și sunt afișate de program):
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{|c|*{16}{c|}}
+\hline
+ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12 & 13 & 14 & 15 \\ \hline
+0 & 14 & 4 & 13 & 1 & 2 & 15 & 11 & 8 & 3 & 10 & 6 & 12 & \textbf{5} & 9 & 0 & 7 \\ \hline
+1 & 0 & 15 & 7 & 4 & 14 & 2 & 13 & 1 & 10 & 6 & 12 & 11 & 9 & 5 & 3 & 8 \\ \hline
+2 & 4 & 1 & 14 & 8 & 13 & 6 & 2 & 11 & 15 & 12 & 9 & 7 & 3 & 10 & 5 & 0 \\ \hline
+3 & 15 & 12 & 8 & 2 & 4 & 9 & 1 & 7 & 5 & 11 & 3 & 14 & 10 & 0 & 6 & 13 \\ \hline
+\end{tabular}
+\end{center}
+
+\subsection{Exemplu de calcul manual}
+
+Fie $B_1 = \texttt{011000}$:
+\begin{itemize}
+    \item primul și ultimul bit: $\texttt{0}\dots\texttt{0} \rightarrow
+    (00)_2 = 0$, deci rândul $r = 0$;
+    \item biții din mijloc: $(1100)_2 = 12$, deci coloana $c = 12$;
+    \item $S_1[0][12] = 5$ (evidențiat în tabelul de mai sus), deci
+    $S_1(B_1) = 5 = \texttt{0101}$.
+\end{itemize}
+
+Aplicând aceeași regulă tuturor celor 8 blocuri din exemplul descris în
+materialul \enquote{The DES Algorithm Illustrated}, obținem:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}cccccc@{}}
+\toprule
+$j$ & $B_j$ & \textbf{Rând} & \textbf{Coloană} & $S_j[r][c]$ & $S_j(B_j)$ \\
+\midrule
+1 & \texttt{011000} & 0 & 12 & 5  & \texttt{0101} \\
+2 & \texttt{010001} & 1 & 8  & 12 & \texttt{1100} \\
+3 & \texttt{011110} & 0 & 15 & 8  & \texttt{1000} \\
+4 & \texttt{111010} & 2 & 13 & 2  & \texttt{0010} \\
+5 & \texttt{100001} & 3 & 0  & 11 & \texttt{1011} \\
+6 & \texttt{100110} & 2 & 3  & 5  & \texttt{0101} \\
+7 & \texttt{010100} & 0 & 10 & 9  & \texttt{1001} \\
+8 & \texttt{100111} & 3 & 3  & 7  & \texttt{0111} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Rezultatul final (32 de biți) este
+$\texttt{0101 1100 1000 0010 1011 0101 1001 0111}$, adică
+$\texttt{5C82B597}$ în hexazecimal.
+
+\section{Implementarea}
+
+Programul a fost realizat în limbajul \textbf{Python 3} (fișierul
+\texttt{lab4/lab4.py}). Mai jos sunt prezentate părțile principale ale codului.
+
+\subsection{Constantele și tabelele cutiilor S}
+
+\begin{lstlisting}[caption={Parametrii și începutul tabelelor S (FIPS 46-3)}]
+INPUT_BITS = 48
+BLOCK_COUNT = 8
+BLOCK_BITS = 6
+OUTPUT_BITS = 4
+
+# Cutiile S1-S8 din standardul FIPS 46-3: 4 randuri x 16 coloane fiecare.
+S_BOXES = (
+    (
+        (14, 4, 13, 1, 2, 15, 11, 8, 3, 10, 6, 12, 5, 9, 0, 7),
+        (0, 15, 7, 4, 14, 2, 13, 1, 10, 6, 12, 11, 9, 5, 3, 8),
+        (4, 1, 14, 8, 13, 6, 2, 11, 15, 12, 9, 7, 3, 10, 5, 0),
+        (15, 12, 8, 2, 4, 9, 1, 7, 5, 11, 3, 14, 10, 0, 6, 13),
+    ),
+    # ... S2 - S8 au aceeasi forma
+)
+\end{lstlisting}
+
+\texttt{S\_BOXES} conține cele 8 cutii; \texttt{S\_BOXES[0]} este $S_1$,
+\texttt{S\_BOXES[7]} este $S_8$. Fiecare cutie este formată din 4 rânduri a câte
+16 valori, copiate din standardul FIPS 46-3.
+
+\subsection{Validarea și generarea datelor de intrare}
+
+\begin{lstlisting}[caption={Verificarea celor 48 de biți și generarea aleatorie}]
+def validate_bits(raw):
+    """Remove spaces and check the input, returning (bits, error_message)."""
+    bits = raw.replace(" ", "")
+    for character in bits:
+        if character not in "01":
+            return None, f"Caracter invalid: {character!r}. Folositi doar 0 si 1."
+    if len(bits) != INPUT_BITS:
+        return None, (f"Trebuie exact {INPUT_BITS} de biti "
+                      f"(ati introdus {len(bits)}).")
+    return bits, None
+
+
+def random_bits():
+    """Generate a random 48-bit string."""
+    return "".join(random.choice("01") for _ in range(INPUT_BITS))
+\end{lstlisting}
+
+Utilizatorul poate scrie biții cu spații între grupe (de exemplu, câte 6),
+deoarece spațiile sunt eliminate. Programul verifică faptul că sunt folosite doar
+cifrele 0 și 1 și că sunt exact 48 de biți. A doua funcție generează aleatoriu un
+șir de 48 de biți.
+
+\subsection{Aplicarea cutiilor S}
+
+\begin{lstlisting}[caption={Împărțirea în blocuri și căutarea în cutiile S}]
+def split_blocks(bits):
+    """Split 48 bits into the eight 6-bit blocks B1..B8."""
+    return [bits[index:index + BLOCK_BITS] for index in range(0, len(bits), BLOCK_BITS)]
+
+
+def sbox_lookup(box_number, block):
+    """Apply S-box number box_number (1-8) to a 6-bit block.
+
+    Returns (row, column, value, output_bits).
+    """
+    row = int(block[0] + block[-1], 2)
+    column = int(block[1:-1], 2)
+    value = S_BOXES[box_number - 1][row][column]
+    return row, column, value, format(value, f"0{OUTPUT_BITS}b")
+
+
+def apply_sboxes(bits):
+    """Return S1(B1)S2(B2)...S8(B8) as a 32-bit string."""
+    return "".join(
+        sbox_lookup(number, block)[3]
+        for number, block in enumerate(split_blocks(bits), start=1)
+    )
+\end{lstlisting}
+
+Funcția \texttt{sbox\_lookup} realizează exact regula descrisă în partea teoretică:
+\texttt{block[0] + block[-1]} formează rândul din primul și ultimul bit,
+\texttt{block[1:-1]} sunt cei 4 biți din mijloc (coloana), iar \texttt{int(..., 2)}
+transformă numărul din binar în zecimal. Valoarea găsită este scrisă înapoi pe
+4 biți cu \texttt{format(value, "04b")}. Funcția \texttt{apply\_sboxes} aplică
+fiecărui bloc $B_j$ cutia $S_j$ și lipește cele 8 rezultate.
+
+\subsection{Afișarea pașilor intermediari}
+
+\begin{lstlisting}[caption={Afișarea fiecărui pas și a rezultatului final}]
+def _run_sboxes(bits):
+    print("\nIntrarea (48 de biti):", _in_groups(bits, BLOCK_BITS))
+    for number, block in enumerate(split_blocks(bits), start=1):
+        row, column, value, output = sbox_lookup(number, block)
+        print(f"\n--- B{number} = {block} ---")
+        print(f"Randul:  primul si ultimul bit {block[0]}{block[-1]} -> {row}")
+        print(f"Coloana: bitii din mijloc {block[1:-1]} -> {column}")
+        _show_sbox(number, row, column)
+        print(f"S{number}(B{number}) = S{number}[{row}][{column}] = {value} -> {output}")
+
+    result = apply_sboxes(bits)
+    print("\nS1(B1)S2(B2)...S8(B8) (32 de biti):", _in_groups(result, OUTPUT_BITS))
+    print("In hexazecimal:", format(int(result, 2), "08X"))
+\end{lstlisting}
+
+Pentru fiecare bloc se afișează rândul, coloana, tabelul cutiei folosite (cu
+valoarea aleasă pusă între paranteze drepte, prin funcția \texttt{\_show\_sbox}) și
+rezultatul de 4 biți. La final se afișează cei 32 de biți obținuți, în binar și în
+hexazecimal.
+
+\section{Rezultatele execuției}
+
+Programul se lansează din folderul \texttt{lab4} cu comanda:
+\begin{lstlisting}[style=terminal]
+(.venv) PS D:\Criptografia\lab4> py lab4.py
+\end{lstlisting}
+
+\subsection{Introducerea datelor de către utilizator}
+
+Utilizatorul alege opțiunea \texttt{1} și introduce cei 48 de biți. Pentru
+fiecare bloc programul afișează pașii și tabelul folosit. Mai jos este prezentat
+complet primul bloc; pentru blocurile $B_2$--$B_8$ s-au păstrat doar rezultatele,
+iar tabelele au fost omise din raport.
+
+\begin{lstlisting}[style=terminal, basicstyle=\ttfamily\scriptsize, caption={Aplicarea cutiilor S pentru datele introduse de utilizator}]
+=== DES: cutiile S (sarcina 2.7) ===
+1. Introduc B1B2...B8
+2. Generez B1B2...B8 aleatoriu
+0. Iesire
+Alege (0-2): 1
+...
+B1B2...B8 (48 de biti): 000011110101010100001111101010011001101001101010
+
+Intrarea (48 de biti): 000011 110101 010100 001111 101010 011001 101001 101010
+
+--- B1 = 000011 ---
+Randul:  primul si ultimul bit 01 -> 1
+Coloana: bitii din mijloc 0001 -> 1
+Tabelul S1 (valoarea aleasa este intre [ ]):
+          0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+  r0:    14    4   13    1    2   15   11    8    3   10    6   12    5    9    0    7
+  r1:     0 [15]    7    4   14    2   13    1   10    6   12   11    9    5    3    8
+  r2:     4    1   14    8   13    6    2   11   15   12    9    7    3   10    5    0
+  r3:    15   12    8    2    4    9    1    7    5   11    3   14   10    0    6   13
+S1(B1) = S1[1][1] = 15 -> 1111
+...
+S2(B2) = S2[3][10] = 7 -> 0111
+...
+S3(B3) = S3[0][10] = 12 -> 1100
+...
+S4(B4) = S4[1][7] = 3 -> 0011
+...
+S5(B5) = S5[2][5] = 13 -> 1101
+...
+S6(B6) = S6[1][12] = 0 -> 0000
+...
+S7(B7) = S7[3][4] = 1 -> 0001
+...
+S8(B8) = S8[2][5] = 12 -> 1100
+
+S1(B1)S2(B2)...S8(B8) (32 de biti): 1111 0111 1100 0011 1101 0000 0001 1100
+In hexazecimal: F7C3D01C
+\end{lstlisting}
+
+Rezultatul poate fi verificat manual. De exemplu, pentru $B_1 = \texttt{000011}$
+primul și ultimul bit dau rândul $(01)_2 = 1$, biții din mijloc dau coloana
+$(0001)_2 = 1$, iar în tabelul $S_1$ găsim $S_1[1][1] = 15 = \texttt{1111}$.
+De asemenea, pentru exemplul din partea teoretică programul afișează rezultatul
+\texttt{5C82B597}, care coincide cu cel din materialul
+\enquote{The DES Algorithm Illustrated}. Aceasta confirmă corectitudinea tabelelor
+și a implementării.
+
+% Pentru a adăuga o captură de ecran, încărcați imaginea în Overleaf și
+% decomentați blocul de mai jos (schimbați numele fișierului dacă e altul).
+% \begin{figure}[h!]
+%     \centering
+%     \includegraphics[width=0.9\textwidth]{lab4/introducere.png}
+%     \caption{Aplicarea cutiilor S în terminal}
+% \end{figure}
+
+\subsection{Generarea aleatorie a datelor}
+
+La alegerea opțiunii \texttt{2}, programul generează singur cei 48 de biți și
+afișează aceiași pași.
+
+\begin{lstlisting}[style=terminal, caption={Aplicarea cutiilor S pentru date generate aleatoriu}]
+Alege (0-2): 2
+
+Intrarea (48 de biti): 110011 001000 001100 110000 101111 101011 111110 001101
+
+--- B1 = 110011 ---
+Randul:  primul si ultimul bit 11 -> 3
+Coloana: bitii din mijloc 1001 -> 9
+...
+S1(B1) = S1[3][9] = 11 -> 1011
+...
+S2(B2) = S2[0][4] = 6 -> 0110
+...
+S3(B3) = S3[0][6] = 15 -> 1111
+...
+S4(B4) = S4[2][8] = 15 -> 1111
+...
+S5(B5) = S5[3][7] = 13 -> 1101
+...
+S6(B6) = S6[3][5] = 5 -> 0101
+...
+S7(B7) = S7[2][15] = 2 -> 0010
+...
+S8(B8) = S8[1][6] = 7 -> 0111
+
+S1(B1)S2(B2)...S8(B8) (32 de biti): 1011 0110 1111 1111 1101 0101 0010 0111
+In hexazecimal: B6FFD527
+\end{lstlisting}
+
+% \begin{figure}[h!]
+%     \centering
+%     \includegraphics[width=0.9\textwidth]{lab4/aleatoriu.png}
+%     \caption{Generarea aleatorie a datelor de intrare}
+% \end{figure}
+
+\subsection{Tratarea datelor incorecte}
+
+Dacă utilizatorul introduce alte caractere decât 0 și 1 sau un număr greșit de
+biți, programul afișează un mesaj explicativ și cere datele din nou. În același
+mod este tratată și alegerea unei opțiuni inexistente în meniu.
+
+\begin{lstlisting}[style=terminal, caption={Mesaje de eroare la introducerea datelor greșite}]
+Alege (0-2): 1
+B1B2...B8 (48 de biti): b1b3b45bbkdjh;
+Caracter invalid: 'b'. Folositi doar 0 si 1.
+B1B2...B8 (48 de biti): 0101010000000000011111111111111
+Trebuie exact 48 de biti (ati introdus 31).
+B1B2...B8 (48 de biti): 000011110101010100001111101010011001101001101010
+\end{lstlisting}
+
+\section{Concluzii}
+
+În cadrul acestei lucrări de laborator au fost studiate cifrurile bloc și
+algoritmul DES: structura Feistel cu 16 runde, generarea celor 16 chei de rundă
+din cheia principală și funcția $f$. A fost implementat în limbajul Python pasul
+de aplicare a cutiilor S, care transformă cei 48 de biți
+$B_1B_2\dots B_8 = K_i \oplus E(R_{i-1})$ în cei 32 de biți
+$S_1(B_1)S_2(B_2)\dots S_8(B_8)$. Programul permite introducerea datelor de către
+utilizator sau generarea lor aleatorie, verifică datele introduse și afișează
+pentru fiecare bloc rândul, coloana, tabelul folosit și rezultatul.
+
+Am observat că fiecare cutie S reduce 6 biți la 4 biți: primul și ultimul bit
+aleg unul dintre cele 4 rânduri, iar cei 4 biți din mijloc aleg coloana. Cutiile S
+sunt singura parte neliniară a algoritmului DES și de ele depinde în cea mai mare
+măsură securitatea acestuia. Corectitudinea implementării a fost verificată pe
+exemplul din materialul \enquote{The DES Algorithm Illustrated}, pentru care s-a
+obținut rezultatul așteptat \texttt{5C82B597}.
+
+Deși structura algoritmului DES este bine gândită, cheia efectivă de 56 de biți
+este astăzi prea scurtă și poate fi găsită prin căutare exhaustivă. De aceea DES a
+fost înlocuit de Triple DES și apoi de AES, însă ideile sale (rundele, structura
+Feistel, substituțiile și permutările) se regăsesc și în cifrurile bloc moderne.
+
+Codul sursă al lucrării este disponibil în repozitoriul GitHub:\\
+\url{https://github.com/alecsyyyk/Cryptography-and-Security}
+
+\end{document}
