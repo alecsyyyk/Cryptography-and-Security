@@ -1,0 +1,778 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,romanian]{babel}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{amsmath,amssymb}
+\usepackage{fancyhdr}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{dirtytalk}
+\usepackage{csquotes}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{tabularx}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    numbers=left,
+    numberstyle=\tiny,
+    frame=single,
+    breaklines=true,
+    showstringspaces=false,
+    captionpos=b
+}
+% listings nu înțelege direct diacriticele UTF-8, de aceea le traducem explicit.
+\lstset{
+    literate=
+        {Ă}{{\u{A}}}1 {ă}{{\u{a}}}1
+        {Â}{{\^A}}1 {â}{{\^a}}1
+        {Î}{{\^I}}1 {î}{{\^i}}1
+        {Ș}{{\textcommabelow{S}}}1 {ș}{{\textcommabelow{s}}}1
+        {Ț}{{\textcommabelow{T}}}1 {ț}{{\textcommabelow{t}}}1
+}
+\lstdefinestyle{terminal}{
+    language={},
+    numbers=none,
+    backgroundcolor=\color{black!5},
+    basicstyle=\ttfamily\scriptsize
+}
+\lstdefinestyle{config}{
+    language={},
+    numbers=none,
+    basicstyle=\ttfamily\footnotesize
+}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.25em}
+
+\begin{document}
+\begin{titlepage}
+\begin{center}
+    % Înlocuiți calea dacă logoul este stocat în altă parte.
+    \includegraphics[width=0.3\textwidth]{lab1/image .png}\\[0.2cm]
+    \textbf{MINISTERUL EDUCAȚIEI, CULTURII ȘI CERCETĂRII\\
+    AL REPUBLICII MOLDOVA}\\[0.3cm]
+    \textbf{Universitatea Tehnică a Moldovei\\
+    Facultatea Calculatoare, Informatică și Microelectronică\\
+    Departamentul Inginerie Software și Automatică}\\[2cm]
+    \Huge\textbf{Raport}\\[0.5cm]
+    \Large Lucrarea de laborator nr. 5\\[0.3cm]
+    \large\textbf{la Criptografie și Securitate}\\[0.8cm]
+    \textbf{Ciur Alexandrina, FAF-241}\\[2.5cm]
+    \begin{flushright}
+        \textit{Verificat de:}\\
+        \textbf{Zaica M.}\\
+        DISA, FCIM, UTM
+    \end{flushright}
+    \vfill
+    Chișinău -- 2026
+\end{center}
+\end{titlepage}
+
+\section*{Tema: Infrastructura cu chei publice (PKI) și semnătura digitală}
+
+\section{Scopul lucrării}
+
+Studierea infrastructurii cu chei publice (PKI) și a semnăturii digitale și
+crearea, cu ajutorul utilitarului \textbf{OpenSSL}, a unei PKI interne: o
+autoritate de certificare (CA) cu certificat autosemnat, care emite și revocă
+certificatele utilizatorilor, iar utilizatorii își semnează fișierele și
+verifică semnăturile.
+
+\section{Sarcina lucrării}
+
+\begin{quote}
+\itshape
+Să se creeze o PKI internă folosind utilitarul OpenSSL. Este necesară generarea
+cheii private root și inițializarea unei autorități de certificare (CA). Pentru
+CA se creează un certificat autosemnat. Sistemul trebuie să poată emite și
+revoca cheia privată a utilizatorului, pentru ca acesta să poată genera ulterior
+o semnătură digitală. Fiecare utilizator care obține o semnătură poate semna un
+document/fișier și poate verifica această semnătură.
+\end{quote}
+
+Cerințe:
+\begin{itemize}
+    \item pentru generarea cheilor private se folosește algoritmul \textbf{RSA};
+    \item cheile utilizatorilor au valabilitatea de \textbf{365 de zile} și
+    dimensiunea de cel puțin \textbf{2048 de biți};
+    \item cheia privată a CA are \textbf{4096 de biți}, iar certificatul
+    autosemnat expiră după \textbf{10 ani (3650 de zile)}.
+\end{itemize}
+
+\section{Considerații teoretice}
+
+\subsection{Criptografia cu chei publice}
+
+În criptografia asimetrică fiecare participant are o pereche de chei: o
+\textbf{cheie privată}, pe care o păstrează doar el, și o \textbf{cheie publică},
+pe care o poate face cunoscută tuturor. Ce s-a făcut cu una dintre chei poate fi
+verificat sau desfăcut doar cu cealaltă. Pentru semnătura digitală, semnatarul
+folosește cheia sa privată, iar oricine poate verifica semnătura cu cheia
+publică.
+
+Rămâne însă o problemă: cum știe verificatorul că o anumită cheie publică
+aparține într-adevăr persoanei respective și nu unui atacator care s-a dat drept
+ea? Această problemă este rezolvată de infrastructura cu chei publice.
+
+\subsection{Infrastructura cu chei publice (PKI)}
+
+\textbf{PKI} (\textit{Public Key Infrastructure}) este ansamblul de componente,
+reguli și proceduri prin care se leagă o cheie publică de identitatea
+proprietarului ei. Componentele principale sunt:
+\begin{itemize}
+    \item \textbf{autoritatea de certificare (CA)} -- entitatea de încredere care
+    verifică identitatea solicitanților și semnează certificatele lor cu cheia
+    sa privată;
+    \item \textbf{certificatul digital} -- un document electronic (standardul
+    \textbf{X.509}) care conține cheia publică a titularului, numele lui
+    (\textit{subject}), numele CA emitente (\textit{issuer}), numărul de serie,
+    perioada de valabilitate, extensiile și semnătura CA;
+    \item \textbf{cererea de certificat (CSR)} -- mesajul prin care utilizatorul
+    își trimite cheia publică și numele spre semnare la CA. CSR-ul este semnat
+    cu cheia privată a utilizatorului, ceea ce dovedește că el deține perechea
+    cheii publice, dar cheia privată nu părăsește niciodată utilizatorul;
+    \item \textbf{lista certificatelor revocate (CRL)} -- o listă semnată de CA
+    care conține numerele de serie ale certificatelor anulate înainte de
+    expirare (de exemplu, din cauza compromiterii cheii private);
+    \item \textbf{baza de date a CA} -- evidența tuturor certificatelor emise și
+    a stării lor (valid, revocat, expirat).
+\end{itemize}
+
+\subsection{Certificatul autosemnat și lanțul de încredere}
+
+Certificatul CA root este \textbf{autosemnat}: câmpurile \textit{subject} și
+\textit{issuer} coincid, iar el este semnat cu propria cheie privată a CA. El
+nu poate fi verificat de nimeni de deasupra, de aceea este distribuit în
+prealabil tuturor participanților și considerat de încredere. Certificatul unui
+utilizator este semnat de CA, deci poate fi verificat cu cheia publică din
+certificatul CA. Astfel se formează \textbf{lanțul de încredere}: CA root
+$\rightarrow$ utilizator. Extensia \texttt{basicConstraints = CA:TRUE} marchează
+certificatul care are dreptul să semneze alte certificate, iar
+\texttt{keyUsage} limitează scopurile în care poate fi folosită cheia.
+
+Deoarece toate certificatele depind de cheia privată root, aceasta trebuie
+protejată cel mai bine: are o dimensiune mai mare (4096 de biți) și este
+păstrată criptată cu o parolă.
+
+\subsection{Semnătura digitală}
+
+Semnătura digitală asigură:
+\begin{itemize}
+    \item \textbf{integritatea} -- orice modificare a documentului face semnătura
+    invalidă;
+    \item \textbf{autentificarea} -- se cunoaște cine a semnat documentul;
+    \item \textbf{nerepudierea} -- semnatarul nu poate nega ulterior că a semnat,
+    deoarece doar el deține cheia privată.
+\end{itemize}
+
+Documentul nu se semnează direct, ci se semnează \textbf{amprenta} (rezumatul)
+lui, calculată cu o funcție hash. Pentru semnătura RSA cu SHA-256:
+\begin{enumerate}
+    \item \textbf{semnarea}: se calculează $h = \mathrm{SHA256}(M)$, $h$ este
+    completat după schema PKCS\#1 v1.5 până la un număr $m < n$, iar semnătura
+    este $s = m^{d} \bmod n$, unde $(d, n)$ este cheia privată;
+    \item \textbf{verificarea}: se calculează $m' = s^{e} \bmod n$ cu cheia
+    publică $(e, n)$ și se compară hash-ul extras din $m'$ cu
+    $\mathrm{SHA256}(M)$ calculat din nou de verificator.
+\end{enumerate}
+Dimensiunea semnăturii este egală cu dimensiunea modulului $n$: pentru o cheie
+de 2048 de biți semnătura are 256 de octeți.
+
+\subsection{Algoritmul DSA și algoritmul RSA}
+
+\textbf{DSA} (\textit{Digital Signature Algorithm}) este algoritmul de semnătură
+standardizat în SUA prin FIPS 186. El se bazează pe dificultatea problemei
+logaritmului discret, folosește parametrii publici $(p, q, g)$ și o valoare
+aleatoare $k$ nouă la fiecare semnare; semnătura este perechea $(r, s)$. Spre
+deosebire de RSA, DSA poate fi folosit doar pentru semnare, nu și pentru
+criptare. Versiunea FIPS 186-5 (2023) nu mai permite generarea de semnături noi
+cu DSA și recomandă RSA, ECDSA sau EdDSA.
+
+Conform cerințelor lucrării, cheile au fost generate cu \textbf{RSA}, deci
+semnătura digitală este RSA (\texttt{sha256WithRSAEncryption}). Securitatea RSA
+se bazează pe dificultatea factorizării modulului $n = p \cdot q$.
+
+\subsection{Revocarea certificatelor}
+
+Un certificat poate deveni nesigur înainte de expirare, de exemplu dacă cheia
+privată a fost furată sau dacă angajatul a părăsit organizația. În acest caz CA
+\textbf{revocă} certificatul: îl marchează în baza de date ca revocat și
+publică o nouă CRL care conține numărul lui de serie și motivul revocării
+(RFC 5280). La verificarea unei semnături, verificatorul trebuie să controleze
+nu doar semnătura, ci și dacă certificatul semnatarului este emis de CA, nu a
+expirat și nu este în CRL.
+
+Revocarea nu poate \enquote{șterge} cheia privată din calculatorul
+utilizatorului, iar matematic aceasta poate semna în continuare. Însă orice
+verificator care consultă CRL află că acea cheie nu mai este de încredere, deci
+semnăturile ei nu mai sunt acceptate.
+
+\subsection{Utilitarul OpenSSL}
+
+\textbf{OpenSSL} este o bibliotecă și un utilitar în linie de comandă pentru
+criptografie. În lucrare au fost folosite comenzile:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Comanda} & \textbf{Rolul} \\
+\midrule
+\texttt{genpkey} & generarea cheilor private RSA \\
+\texttt{req} & crearea CSR-ului sau a certificatului autosemnat (\texttt{-x509}) \\
+\texttt{ca} & semnarea CSR-urilor, revocarea certificatelor, generarea CRL \\
+\texttt{verify} & verificarea certificatului față de CA și CRL \\
+\texttt{x509} & afișarea certificatului, extragerea cheii publice \\
+\texttt{dgst} & calcularea hash-ului, semnarea și verificarea semnăturii \\
+\texttt{crl}, \texttt{pkey} & afișarea CRL, verificarea parolei cheii CA \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Implementarea}
+
+Programul a fost realizat în limbajul \textbf{Python 3} (fișierul
+\texttt{lab5/pki.py}), care apelează utilitarul \texttt{openssl} prin modulul
+\texttt{subprocess}. Programul are un meniu și afișează fiecare comandă OpenSSL
+executată, astfel încât se vede ce face PKI la fiecare pas. Toate fișierele PKI
+se păstrează în folderul \texttt{lab5/pki/}:
+
+\begin{lstlisting}[style=config, caption={Structura folderului PKI}]
+pki/
+  openssl.cnf          configuratia CA
+  private/ca.key       cheia privata root (RSA 4096, criptata AES-256)
+  certs/ca.crt         certificatul autosemnat al CA (3650 de zile)
+  crl/ca.crl           lista certificatelor revocate
+  index.txt            baza de date a CA (starea certificatelor)
+  serial, crlnumber    urmatorul numar de serie / numar CRL
+  newcerts/1000.pem    copiile certificatelor emise
+  users/<nume>/        <nume>.key, <nume>.csr, <nume>.crt, <nume>.pub
+\end{lstlisting}
+
+Folderul \texttt{pki/} conține chei private, de aceea a fost adăugat în
+\texttt{.gitignore} și nu este publicat în repozitoriu.
+
+\subsection{Parametrii și configurația CA}
+
+\begin{lstlisting}[caption={Parametrii impuși de sarcină}]
+CA_KEY_BITS = 4096
+CA_DAYS = 3650
+USER_KEY_BITS = (2048, 3072, 4096)
+USER_DAYS = 365
+CRL_DAYS = 30
+DIGEST = "sha256"
+\end{lstlisting}
+
+Utilizatorul poate alege doar dimensiuni de cheie de cel puțin 2048 de biți.
+Programul generează fișierul \texttt{openssl.cnf}; secțiunile principale sunt:
+
+\begin{lstlisting}[style=config, caption={Fragment din \texttt{openssl.cnf}}]
+[ CA_default ]
+database         = $dir/index.txt
+private_key      = $dir/private/ca.key
+certificate      = $dir/certs/ca.crt
+default_md       = sha256
+default_days     = 365
+policy           = policy_user
+unique_subject   = no
+
+[ v3_ca ]
+basicConstraints = critical, CA:true
+keyUsage         = critical, keyCertSign, cRLSign, digitalSignature
+
+[ usr_cert ]
+basicConstraints = critical, CA:false
+keyUsage         = critical, digitalSignature, nonRepudiation
+\end{lstlisting}
+
+Extensia \texttt{v3\_ca} se aplică certificatului CA, iar \texttt{usr\_cert}
+certificatelor utilizatorilor: acestea nu pot semna alte certificate
+(\texttt{CA:false}) și pot fi folosite doar pentru semnătură digitală.
+Opțiunea \texttt{unique\_subject = no} permite emiterea unui certificat nou cu
+același nume după revocarea celui vechi.
+
+\subsection{Apelarea OpenSSL și protecția parolei CA}
+
+\begin{lstlisting}[caption={Funcția care execută comenzile OpenSSL}]
+def run_openssl(*args, password=None, quiet=False, check=True):
+    command = [OPENSSL, *args]
+    if not quiet:
+        print("  $ openssl " + " ".join(_quote(arg) for arg in args))
+    PKI_DIR.mkdir(exist_ok=True)
+    environment = dict(os.environ)
+    if password is not None:
+        environment["CA_PASS"] = password
+    result = subprocess.run(
+        command, cwd=PKI_DIR, env=environment,
+        stdin=subprocess.DEVNULL, capture_output=True, text=True,
+    )
+    if not check:
+        return result
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout).strip()
+        if "bad decrypt" in message or "maybe wrong password" in message:
+            raise PkiError("Parola cheii CA este gresita.")
+        raise PkiError(message or f"openssl a terminat cu codul {result.returncode}")
+    return result.stdout
+\end{lstlisting}
+
+Parola cheii CA se citește cu \texttt{getpass} (nu apare pe ecran) și se
+transmite către OpenSSL prin variabila de mediu \texttt{CA\_PASS}
+(\texttt{-passin env:CA\_PASS}), nu prin linia de comandă, unde ar putea fi
+văzută de alți utilizatori în lista proceselor.
+
+\subsection{Inițializarea CA}
+
+\begin{lstlisting}[caption={Generarea cheii root și a certificatului autosemnat}]
+run_openssl("genpkey", "-algorithm", "RSA",
+            "-pkeyopt", f"rsa_keygen_bits:{CA_KEY_BITS}",
+            "-aes-256-cbc", "-pass", "env:CA_PASS",
+            "-out", CA_KEY, password=password)
+_restrict(PKI_DIR / CA_KEY)
+
+run_openssl("req", "-config", CONFIG, "-new", "-x509",
+            "-key", CA_KEY, "-passin", "env:CA_PASS",
+            "-days", str(CA_DAYS), f"-{DIGEST}",
+            "-extensions", "v3_ca", "-subj", CA_SUBJECT,
+            "-out", CA_CERT, password=password)
+
+generate_crl(password)
+\end{lstlisting}
+
+Cheia root de 4096 de biți se salvează criptată cu AES-256, iar
+\texttt{\_restrict} îi lasă drept de citire doar proprietarului. Opțiunea
+\texttt{-x509} a comenzii \texttt{req} creează direct un certificat autosemnat
+(în loc de o cerere), valabil 3650 de zile. La final se publică o CRL goală.
+
+\subsection{Emiterea cheii și a certificatului pentru un utilizator}
+
+\begin{lstlisting}[caption={Funcția \texttt{issue\_user}}]
+def issue_user(name, bits, password):
+    key, csr, certificate = user_paths(name)
+    ensure_no_valid_certificate(name)
+    check_ca_password(password)
+    (PKI_DIR / "users" / name).mkdir(parents=True, exist_ok=True)
+
+    run_openssl("genpkey", "-algorithm", "RSA",
+                "-pkeyopt", f"rsa_keygen_bits:{bits}", "-out", key)
+    _restrict(PKI_DIR / key)
+
+    run_openssl("req", "-config", CONFIG, "-new", "-key", key,
+                "-subj", USER_SUBJECT.format(name=name), "-out", csr)
+
+    run_openssl("ca", "-config", CONFIG, "-batch", "-notext",
+                "-extensions", "usr_cert", "-days", str(USER_DAYS),
+                "-passin", "env:CA_PASS", "-in", csr, "-out", certificate,
+                password=password)
+    return certificate
+\end{lstlisting}
+
+Emiterea are trei pași: utilizatorul își generează cheia RSA, creează cererea
+CSR, iar CA o semnează și emite certificatul pe 365 de zile. Comanda
+\texttt{openssl ca} atribuie certificatului următorul număr de serie și îl
+înregistrează în \texttt{index.txt}. Înainte de a genera ceva, programul
+verifică parola CA (\texttt{check\_ca\_password}) și refuză emiterea dacă
+utilizatorul are deja un certificat valid.
+
+\subsection{Revocarea certificatului}
+
+\begin{lstlisting}[caption={Funcția \texttt{revoke\_user}}]
+def revoke_user(name, reason, password):
+    _, _, certificate = user_paths(name)
+    if not (PKI_DIR / certificate).exists():
+        raise PkiError(f"Utilizatorul {name} nu are certificat.")
+    check_ca_password(password)
+    run_openssl("ca", "-config", CONFIG, "-revoke", certificate,
+                "-crl_reason", reason, "-passin", "env:CA_PASS",
+                password=password)
+    generate_crl(password)
+\end{lstlisting}
+
+Utilizatorul alege motivul revocării dintr-o listă (\texttt{keyCompromise},
+\texttt{affiliationChanged}, \texttt{superseded},
+\texttt{cessationOfOperation}). Certificatul primește starea \texttt{R} în baza
+de date, iar CA publică imediat o CRL nouă care îl conține.
+
+\subsection{Verificarea stării certificatului}
+
+\begin{lstlisting}[caption={Verificarea certificatului față de CA și CRL}]
+def certificate_status(certificate):
+    try:
+        output = run_openssl("verify", "-CAfile", CA_CERT,
+                             "-CRLfile", CA_CRL, "-crl_check",
+                             str(certificate), quiet=True)
+        return True, output.strip()
+    except PkiError as error:
+        return False, str(error)
+\end{lstlisting}
+
+\texttt{openssl verify} controlează semnătura CA de pe certificat, perioada de
+valabilitate și, datorită opțiunii \texttt{-crl\_check}, dacă certificatul nu se
+află în CRL. Această funcție este folosită atât la semnare, cât și la
+verificare.
+
+\subsection{Semnarea și verificarea fișierelor}
+
+\begin{lstlisting}[caption={Semnarea unui fișier}]
+def sign_file(name, path):
+    key, _, certificate = user_paths(name)
+    if not (PKI_DIR / key).exists():
+        raise PkiError(f"Utilizatorul {name} nu are cheie privata.")
+    valid, message = certificate_status(certificate)
+    if not valid:
+        raise PkiError(f"Certificatul lui {name} nu este valid, semnarea este "
+                       f"interzisa.\n{message}")
+    signature = path.with_name(f"{path.name}.{name}.sig")
+    run_openssl("dgst", f"-{DIGEST}", "-sign", key,
+                "-out", _arg_path(signature), _arg_path(path))
+    return signature
+\end{lstlisting}
+
+\texttt{openssl dgst -sha256 -sign} calculează hash-ul SHA-256 al fișierului și
+îl semnează cu cheia privată RSA. Semnătura se salvează lângă fișier, cu numele
+\texttt{<fișier>.<utilizator>.sig}. Dacă certificatul utilizatorului a fost
+revocat sau a expirat, programul nu permite semnarea.
+
+\begin{lstlisting}[caption={Verificarea semnăturii (fragment)}]
+certificate_ok, certificate_message = certificate_status(certificate)
+
+public_key = f"users/{name}/{name}.pub"
+run_openssl("x509", "-in", certificate, "-pubkey", "-noout", "-out", public_key)
+
+result = run_openssl("dgst", f"-{DIGEST}", "-verify", public_key,
+                     "-signature", _arg_path(signature), _arg_path(path),
+                     check=False)
+signature_ok = result.returncode == 0
+\end{lstlisting}
+
+Verificarea are trei pași: (1) se verifică certificatul semnatarului față de CA
+și CRL; (2) cheia publică se extrage din certificat, nu se ia dintr-o sursă
+oarecare, deci este garantată de CA; (3) \texttt{openssl dgst -verify}
+verifică semnătura. Semnătura este acceptată doar dacă ambele verificări
+reușesc. Dacă semnătura corespunde fișierului, dar certificatul este revocat,
+programul o raportează separat ca semnătură în care nu se poate avea încredere.
+
+\section{Rezultatele execuției}
+
+Programul se lansează din folderul \texttt{lab5} (OpenSSL trebuie să fie
+instalat și disponibil în \texttt{PATH}; altfel calea spre \texttt{openssl} se
+poate indica prin variabila de mediu \texttt{OPENSSL}):
+\begin{lstlisting}[style=terminal]
+python pki.py
+\end{lstlisting}
+
+Pentru testare a fost folosit fișierul \texttt{document.txt}:
+\begin{lstlisting}[style=terminal]
+Contract de prestari servicii nr. 17
+Suma: 5000 MDL
+\end{lstlisting}
+
+În listingurile de mai jos meniul principal a fost afișat doar o dată.
+
+\subsection{Inițializarea CA}
+
+\begin{lstlisting}[style=terminal, caption={Crearea CA și a certificatului autosemnat}]
+=== PKI interna si semnatura digitala ===
+1. Initializarea CA (cheia root + certificatul autosemnat)
+2. Emiterea cheii si a certificatului pentru un utilizator
+3. Revocarea certificatului unui utilizator
+4. Semnarea unui fisier
+5. Verificarea unei semnaturi
+6. Afisarea certificatelor si a listei CRL
+0. Iesire
+Alege (0-6): 1
+Parola noua pentru cheia CA (min. 4 caractere):
+Repetati parola:
+
+[1/3] Cheia privata root (RSA 4096 biti, criptata AES-256):
+  $ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -aes-256-cbc -pass env:CA_PASS -out private/ca.key
+
+[2/3] Certificatul autosemnat al CA (3650 de zile):
+  $ openssl req -config openssl.cnf -new -x509 -key private/ca.key -passin env:CA_PASS -days 3650 -sha256 -extensions v3_ca -subj "/C=MD/L=Chisinau/O=UTM/OU=FCIM FAF-241/CN=FAF-241 Root CA" -out certs/ca.crt
+
+[3/3] Lista certificatelor revocate (CRL), deocamdata goala:
+  $ openssl ca -config openssl.cnf -gencrl -passin env:CA_PASS -out crl/ca.crl
+
+CA a fost creata. Certificatul autosemnat:
+  subject=C=MD, L=Chisinau, O=UTM, OU=FCIM FAF-241, CN=FAF-241 Root CA
+  issuer=C=MD, L=Chisinau, O=UTM, OU=FCIM FAF-241, CN=FAF-241 Root CA
+  serial=1342055DB5EC9D13A3D6E7751CF38096E8FB5ABC
+  notBefore=Nov 22 11:20:55 2026 GMT
+  notAfter=Nov 19 11:20:55 2036 GMT
+  X509v3 Basic Constraints: critical
+      CA:TRUE
+  X509v3 Key Usage: critical
+      Digital Signature, Certificate Sign, CRL Sign
+  Cheia publica: RSA 4096 biti
+\end{lstlisting}
+
+Câmpurile \textit{subject} și \textit{issuer} coincid, deci certificatul este
+autosemnat. Cheia are 4096 de biți, iar între \texttt{notBefore} și
+\texttt{notAfter} sunt 3650 de zile (10 ani).
+
+\subsection{Emiterea certificatelor pentru utilizatori}
+
+Au fost creați doi utilizatori: \texttt{alexandrina} (cheie de 2048 de biți) și
+\texttt{ion} (cheie de 3072 de biți).
+
+\begin{lstlisting}[style=terminal, caption={Emiterea cheii și a certificatului pentru un utilizator}]
+Alege (0-6): 2
+Numele utilizatorului: alexandrina
+Dimensiunea cheii: 1. 2048 biti, 2. 3072 biti, 3. 4096 biti
+Alege (1-3): 1
+Parola cheii CA:
+
+[1/3] Cheia privata a utilizatorului (RSA 2048 biti):
+  $ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out users/alexandrina/alexandrina.key
+
+[2/3] Cererea de certificat (CSR):
+  $ openssl req -config openssl.cnf -new -key users/alexandrina/alexandrina.key -subj "/C=MD/L=Chisinau/O=UTM/OU=FCIM FAF-241/CN=alexandrina" -out users/alexandrina/alexandrina.csr
+
+[3/3] CA semneaza cererea (365 de zile):
+  $ openssl ca -config openssl.cnf -batch -notext -extensions usr_cert -days 365 -passin env:CA_PASS -in users/alexandrina/alexandrina.csr -out users/alexandrina/alexandrina.crt
+
+Cheia privata:  pki/users/alexandrina/alexandrina.key
+Certificatul:   pki/users/alexandrina/alexandrina.crt
+  subject=C=MD, L=Chisinau, O=UTM, OU=FCIM FAF-241, CN=alexandrina
+  issuer=C=MD, L=Chisinau, O=UTM, OU=FCIM FAF-241, CN=FAF-241 Root CA
+  serial=1000
+  notBefore=Nov 22 11:21:02 2026 GMT
+  notAfter=Nov 22 11:21:02 2027 GMT
+  X509v3 Basic Constraints: critical
+      CA:FALSE
+  X509v3 Key Usage: critical
+      Digital Signature, Non Repudiation
+  Cheia publica: RSA 2048 biti
+
+Alege (0-6): 2
+Numele utilizatorului: ion
+Dimensiunea cheii: 1. 2048 biti, 2. 3072 biti, 3. 4096 biti
+Alege (1-3): 2
+...
+  serial=1001
+  notBefore=Nov 22 11:21:09 2026 GMT
+  notAfter=Nov 22 11:21:09 2027 GMT
+  ...
+  Cheia publica: RSA 3072 biti
+\end{lstlisting}
+
+Certificatul utilizatorului este emis de CA (\textit{issuer} este
+\texttt{FAF-241 Root CA}), este valabil exact 365 de zile și nu are dreptul să
+semneze alte certificate (\texttt{CA:FALSE}).
+
+\subsection{Semnarea și verificarea unui fișier}
+
+\begin{lstlisting}[style=terminal, caption={Semnarea documentului și verificarea reușită}]
+Alege (0-6): 4
+Utilizatori: alexandrina, ion
+Numele utilizatorului: alexandrina
+Fisierul de semnat: document.txt
+  $ openssl dgst -sha256 -sign users/alexandrina/alexandrina.key -out ../document.txt.alexandrina.sig ../document.txt
+
+Semnatura (256 octeti) a fost salvata in: document.txt.alexandrina.sig
+
+Alege (0-6): 5
+Utilizatori: alexandrina, ion
+Numele utilizatorului: alexandrina
+Fisierul semnat: document.txt
+Fisierul semnaturii [document.txt.alexandrina.sig]:
+
+[1/3] Verificarea certificatului semnatarului (CA + CRL):
+  $ openssl verify -CAfile certs/ca.crt -CRLfile crl/ca.crl -crl_check users/alexandrina/alexandrina.crt
+  users/alexandrina/alexandrina.crt: OK
+
+[2/3] Extragerea cheii publice din certificat:
+  $ openssl x509 -in users/alexandrina/alexandrina.crt -pubkey -noout -out users/alexandrina/alexandrina.pub
+
+[3/3] Verificarea semnaturii:
+  $ openssl dgst -sha256 -verify users/alexandrina/alexandrina.pub -signature ../document.txt.alexandrina.sig ../document.txt
+  Verified OK
+
+REZULTAT: semnatura este VALIDA. Fisierul a fost semnat de alexandrina si nu a fost modificat.
+\end{lstlisting}
+
+Semnătura are 256 de octeți, adică 2048 de biți, cât modulul cheii RSA a
+utilizatorului.
+
+\subsection{Verificarea unui document modificat și a unui semnatar greșit}
+
+Fișierul \texttt{document\_modificat.txt} este o copie a documentului în care
+suma a fost schimbată din \texttt{5000} în \texttt{50000 MDL}. Se verifică
+semnătura originală a documentului, mai întâi pentru fișierul modificat, apoi
+ca și cum ar fi semnătura lui \texttt{ion}.
+
+\begin{lstlisting}[style=terminal, caption={Semnătura nu corespunde fișierului modificat sau altui utilizator}]
+Alege (0-6): 5
+Numele utilizatorului: alexandrina
+Fisierul semnat: document_modificat.txt
+Fisierul semnaturii [document_modificat.txt.alexandrina.sig]: document.txt.alexandrina.sig
+...
+[1/3] Verificarea certificatului semnatarului (CA + CRL):
+  users/alexandrina/alexandrina.crt: OK
+...
+[3/3] Verificarea semnaturii:
+  $ openssl dgst -sha256 -verify users/alexandrina/alexandrina.pub -signature ../document.txt.alexandrina.sig ../document_modificat.txt
+  Verification failure
+
+REZULTAT: semnatura este INVALIDA (fisierul a fost modificat sau semnatura nu apartine acestui utilizator).
+
+Alege (0-6): 5
+Numele utilizatorului: ion
+Fisierul semnat: document.txt
+Fisierul semnaturii [document.txt.ion.sig]: document.txt.alexandrina.sig
+...
+  users/ion/ion.crt: OK
+...
+  $ openssl dgst -sha256 -verify users/ion/ion.pub -signature ../document.txt.alexandrina.sig ../document.txt
+  Verification failure
+
+REZULTAT: semnatura este INVALIDA (fisierul a fost modificat sau semnatura nu apartine acestui utilizator).
+\end{lstlisting}
+
+Schimbarea unei singure cifre modifică complet hash-ul SHA-256, de aceea
+semnătura nu mai corespunde (\emph{integritatea}). Cheia publică a lui
+\texttt{ion} nu poate verifica o semnătură făcută cu cheia privată a lui
+\texttt{alexandrina} (\emph{autentificarea}).
+
+\subsection{Revocarea certificatului}
+
+Se presupune că cheia privată a utilizatorului \texttt{alexandrina} a fost
+compromisă și certificatul ei este revocat.
+
+\begin{lstlisting}[style=terminal, caption={Revocarea certificatului și efectul ei}]
+Alege (0-6): 3
+Utilizatori: alexandrina, ion
+Numele utilizatorului: alexandrina
+1. cheia privata a fost compromisa
+2. utilizatorul a parasit organizatia
+3. certificatul a fost inlocuit
+4. certificatul nu mai este necesar
+Motivul revocarii (1-4): 1
+Parola cheii CA:
+
+[1/2] Revocarea certificatului in baza de date a CA:
+  $ openssl ca -config openssl.cnf -revoke users/alexandrina/alexandrina.crt -crl_reason keyCompromise -passin env:CA_PASS
+
+[2/2] Publicarea noii liste CRL:
+  $ openssl ca -config openssl.cnf -gencrl -passin env:CA_PASS -out crl/ca.crl
+
+Certificatul lui alexandrina a fost revocat (keyCompromise).
+
+Alege (0-6): 5
+Numele utilizatorului: alexandrina
+Fisierul semnat: document.txt
+Fisierul semnaturii [document.txt.alexandrina.sig]:
+
+[1/3] Verificarea certificatului semnatarului (CA + CRL):
+  $ openssl verify -CAfile certs/ca.crt -CRLfile crl/ca.crl -crl_check users/alexandrina/alexandrina.crt
+  C=MD, L=Chisinau, O=UTM, OU=FCIM FAF-241, CN=alexandrina
+  error 23 at 0 depth lookup: certificate revoked
+  error users/alexandrina/alexandrina.crt: verification failed
+...
+[3/3] Verificarea semnaturii:
+  Verified OK
+
+REZULTAT: semnatura corespunde fisierului, dar NU este de incredere: certificatul lui alexandrina nu este valid (revocat sau expirat).
+
+Alege (0-6): 4
+Numele utilizatorului: alexandrina
+Fisierul de semnat: document.txt
+
+EROARE: Certificatul lui alexandrina nu este valid, semnarea este interzisa.
+C=MD, L=Chisinau, O=UTM, OU=FCIM FAF-241, CN=alexandrina
+error 23 at 0 depth lookup: certificate revoked
+error users/alexandrina/alexandrina.crt: verification failed
+\end{lstlisting}
+
+Matematic semnătura este în continuare corectă (\texttt{Verified OK}), însă
+OpenSSL găsește certificatul în CRL (\texttt{error 23: certificate revoked}),
+deci semnătura nu mai este acceptată, iar semnarea de noi fișiere este
+blocată.
+
+\subsection{Starea PKI}
+
+\begin{lstlisting}[style=terminal, caption={Certificatele emise și lista CRL}]
+Alege (0-6): 6
+...
+Certificatele emise (baza de date index.txt):
+  1000  revocat  expira 2027-11-22 11:21  /C=MD/L=Chisinau/O=UTM/OU=FCIM FAF-241/CN=alexandrina  (revocat 2026-11-22 11:21, keyCompromise)
+  1001  valid    expira 2027-11-22 11:21  /C=MD/L=Chisinau/O=UTM/OU=FCIM FAF-241/CN=ion
+
+Lista CRL (crl/ca.crl):
+  lastUpdate=Nov 22 11:21:40 2026 GMT
+  nextUpdate=Dec 22 11:21:40 2026 GMT
+  crlNumber=0x1001
+  Certificate revocate: 1000
+\end{lstlisting}
+
+După revocare, utilizatorul poate primi o cheie și un certificat nou
+(opțiunea~2), care primește următorul număr de serie (\texttt{1002}); cât timp
+utilizatorul are un certificat valid, programul refuză emiterea unuia nou.
+
+\subsection{Tratarea erorilor}
+
+\begin{lstlisting}[style=terminal, caption={Parolă greșită, certificat existent, opțiune inexistentă}]
+Alege (0-6): 3
+Numele utilizatorului: ion
+Motivul revocarii (1-4): 1
+Parola cheii CA:
+
+EROARE: Parola cheii CA este gresita.
+
+Alege (0-6): 2
+Numele utilizatorului: ion
+
+EROARE: Utilizatorul ion are deja un certificat valid. Revocati-l inainte de a emite unul nou.
+
+Alege (0-6): 9
+Optiune invalida. Alegeti un numar intre 0 si 6.
+\end{lstlisting}
+
+Parola CA se verifică înainte de orice modificare, deci o parolă greșită nu
+lasă în PKI fișiere create pe jumătate. Programul verifică și numele
+utilizatorului (2--32 de caractere: litere latine, cifre, \texttt{\_},
+\texttt{-}), iar operațiile 2--6 nu sunt permise înainte de inițializarea CA.
+
+% Pentru a adăuga capturi de ecran, încărcați imaginile în Overleaf și
+% decomentați blocul de mai jos (schimbați numele fișierului dacă e altul).
+% \begin{figure}[h!]
+%     \centering
+%     \includegraphics[width=0.9\textwidth]{lab5/semnare.png}
+%     \caption{Semnarea și verificarea unui fișier}
+% \end{figure}
+
+\section{Concluzii}
+
+În cadrul acestei lucrări de laborator a fost studiată infrastructura cu chei
+publice și semnătura digitală și a fost creată o PKI internă cu ajutorul
+utilitarului OpenSSL, controlată de un program în Python. A fost generată cheia
+root RSA de 4096 de biți, păstrată criptată cu AES-256, și certificatul
+autosemnat al CA, valabil 3650 de zile. Programul emite pentru utilizatori chei
+RSA de cel puțin 2048 de biți și certificate semnate de CA pentru 365 de zile,
+revocă certificatele și publică lista CRL, semnează fișiere cu RSA și SHA-256 și
+verifică semnăturile.
+
+Experimentele au confirmat proprietățile semnăturii digitale: modificarea unei
+singure cifre din document face semnătura invalidă, iar semnătura unui
+utilizator nu poate fi verificată cu cheia publică a altuia. Am observat că
+verificarea matematică a semnăturii nu este suficientă: după revocare, semnătura
+veche rămâne corectă matematic, dar nu mai poate fi acceptată. De aceea o
+verificare completă controlează și certificatul semnatarului: dacă este emis de
+CA de încredere, dacă nu a expirat și dacă nu este în CRL.
+
+Securitatea întregii PKI depinde de cheia privată a CA: cine o deține poate
+emite certificate în numele oricui. În practică, cheia root se păstrează offline
+sau într-un modul hardware (HSM), iar certificatele utilizatorilor sunt semnate
+de o CA intermediară. Deși tema lucrării menționează algoritmul DSA, conform
+cerințelor a fost folosit RSA, care este și recomandarea actuală a standardului
+FIPS 186-5.
+
+Codul sursă al lucrării este disponibil în repozitoriul GitHub:\\
+\url{https://github.com/alecsyyyk/Cryptography-and-Security}
+
+\end{document}
